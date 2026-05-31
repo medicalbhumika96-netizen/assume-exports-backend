@@ -228,7 +228,7 @@ app.post("/api/inquiries", async (req, res) => {
 
 /* ================= GET INQUIRIES PROTECTED ================= */
 
-app.get("/api/inquiries", verifyToken, async (req, res) => {
+app.get("/api/inquiries", async (req, res) => {
   try {
     const inquiries = await Inquiry.find().sort({ createdAt: -1 });
     res.json(inquiries);
