@@ -3,9 +3,9 @@ require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-const nodemailer = require("nodemailer");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
+const { Resend } = require("resend");
 
 const app = express();
 
@@ -13,6 +13,8 @@ app.use(cors());
 app.use(express.json());
 
 const PORT = process.env.PORT || 5000;
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 /* ================= MONGODB ================= */
 
@@ -25,27 +27,6 @@ mongoose
     console.log("MongoDB Connection Error:");
     console.log(err.message);
   });
-
-/* ================= EMAIL ================= */
-
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  },
-
-  tls: {
-    rejectUnauthorized: false
-  },
-
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 10000,
-
-  family: 4
-});
 
 /* ================= PASSWORD VERSION ================= */
 
@@ -185,8 +166,8 @@ app.post("/api/inquiries", async (req, res) => {
     let emailSent = false;
 
     try {
-      await transporter.sendMail({
-        from: `"Assume Exports Website" <${process.env.EMAIL_USER}>`,
+      await resend.emails.send({
+        from: "Assume Exports <onboarding@resend.dev>",
         to: "ravindrapuri81@gmail.com",
         subject: "New Inquiry Received | Assume Exports",
 
@@ -210,8 +191,7 @@ app.post("/api/inquiries", async (req, res) => {
       });
 
       emailSent = true;
-
-      console.log("Email sent successfully");
+      console.log("Email sent successfully via Resend");
 
     } catch (mailError) {
       console.log("Email Error:");
