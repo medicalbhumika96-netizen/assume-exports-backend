@@ -29,9 +29,7 @@ mongoose
 /* ================= EMAIL ================= */
 
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
+  service: "gmail",
 
   auth: {
     user: process.env.EMAIL_USER,
@@ -41,6 +39,10 @@ const transporter = nodemailer.createTransport({
   tls: {
     rejectUnauthorized: false
   },
+
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 10000,
 
   family: 4
 });
@@ -80,6 +82,7 @@ const verifyToken = (req, res, next) => {
 
     req.admin = decoded;
     next();
+
   } catch (error) {
     return res.status(401).json({
       success: false,
@@ -141,7 +144,7 @@ app.post("/api/admin/login", async (req, res) => {
     ) {
       const token = jwt.sign(
         {
-          email: email,
+          email,
           role: "admin",
           passwordVersion: getPasswordVersion()
         },
@@ -162,6 +165,7 @@ app.post("/api/admin/login", async (req, res) => {
       success: false,
       message: "Invalid email or password"
     });
+
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -182,9 +186,10 @@ app.post("/api/inquiries", async (req, res) => {
 
     try {
       await transporter.sendMail({
-        from: process.env.EMAIL_USER,
+        from: `"Assume Exports Website" <${process.env.EMAIL_USER}>`,
         to: "ravindrapuri81@gmail.com",
         subject: "New Inquiry Received | Assume Exports",
+
         html: `
           <div style="font-family:Arial;padding:20px;line-height:1.7">
             <h2 style="color:#111">New Inquiry Received</h2>
@@ -205,6 +210,9 @@ app.post("/api/inquiries", async (req, res) => {
       });
 
       emailSent = true;
+
+      console.log("Email sent successfully");
+
     } catch (mailError) {
       console.log("Email Error:");
       console.log(mailError.message);
@@ -218,6 +226,7 @@ app.post("/api/inquiries", async (req, res) => {
       emailSent,
       data: inquiry
     });
+
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -226,12 +235,14 @@ app.post("/api/inquiries", async (req, res) => {
   }
 });
 
-/* ================= GET INQUIRIES PROTECTED ================= */
+/* ================= GET INQUIRIES PUBLIC ================= */
 
 app.get("/api/inquiries", async (req, res) => {
   try {
     const inquiries = await Inquiry.find().sort({ createdAt: -1 });
+
     res.json(inquiries);
+
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -240,9 +251,9 @@ app.get("/api/inquiries", async (req, res) => {
   }
 });
 
-/* ================= UPDATE STATUS PROTECTED ================= */
+/* ================= UPDATE STATUS ================= */
 
-app.put("/api/inquiries/:id/status", verifyToken, async (req, res) => {
+app.put("/api/inquiries/:id/status", async (req, res) => {
   try {
     const { status } = req.body;
 
@@ -257,6 +268,7 @@ app.put("/api/inquiries/:id/status", verifyToken, async (req, res) => {
       message: "Status updated",
       data: inquiry
     });
+
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -265,9 +277,9 @@ app.put("/api/inquiries/:id/status", verifyToken, async (req, res) => {
   }
 });
 
-/* ================= DELETE INQUIRY PROTECTED ================= */
+/* ================= DELETE INQUIRY ================= */
 
-app.delete("/api/inquiries/:id", verifyToken, async (req, res) => {
+app.delete("/api/inquiries/:id", async (req, res) => {
   try {
     await Inquiry.findByIdAndDelete(req.params.id);
 
@@ -275,6 +287,7 @@ app.delete("/api/inquiries/:id", verifyToken, async (req, res) => {
       success: true,
       message: "Inquiry deleted"
     });
+
   } catch (error) {
     res.status(500).json({
       success: false,
