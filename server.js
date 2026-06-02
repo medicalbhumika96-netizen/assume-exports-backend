@@ -13,7 +13,6 @@ app.use(cors());
 app.use(express.json());
 
 const PORT = process.env.PORT || 5000;
-
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 /* ================= MONGODB ================= */
@@ -72,27 +71,26 @@ const verifyToken = (req, res, next) => {
   }
 };
 
-/* ================= SCHEMA ================= */
+/* ================= CUSTOMISATION SCHEMA ================= */
 
-const inquirySchema = new mongoose.Schema(
+const customisationSchema = new mongoose.Schema(
   {
-    name: String,
+    fullName: String,
+    country: String,
     email: String,
+    businessType: String,
     phone: String,
-    companyName: String,
-    productName: String,
-    quantity: String,
-    message: String,
-    emailRoute: String,
+
+    dimensions: String,
+    materialPreference: String,
+    estimatedQuantity: String,
+    specificRequirements: String,
+
+    referenceFiles: Array,
 
     status: {
       type: String,
       default: "New"
-    },
-
-    priority: {
-      type: String,
-      default: "Normal"
     },
 
     date: {
@@ -105,7 +103,39 @@ const inquirySchema = new mongoose.Schema(
   }
 );
 
-const Inquiry = mongoose.model("Inquiry", inquirySchema);
+const Customisation = mongoose.model("Customisation", customisationSchema);
+
+/* ================= CATALOGUE SCHEMA ================= */
+
+const catalogueSchema = new mongoose.Schema(
+  {
+    categories: Array,
+    subcategories: Array,
+
+    fullName: String,
+    companyName: String,
+    country: String,
+    email: String,
+    phone: String,
+    website: String,
+    additionalNotes: String,
+
+    status: {
+      type: String,
+      default: "New"
+    },
+
+    date: {
+      type: String,
+      default: () => new Date().toLocaleString()
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+
+const Catalogue = mongoose.model("Catalogue", catalogueSchema);
 
 /* ================= HOME ================= */
 
@@ -155,13 +185,13 @@ app.post("/api/admin/login", async (req, res) => {
   }
 });
 
-/* ================= SAVE INQUIRY PUBLIC ================= */
+/* ================= SAVE CUSTOMISATION REQUEST ================= */
 
-app.post("/api/inquiries", async (req, res) => {
+app.post("/api/customisation", async (req, res) => {
   try {
-    const inquiry = new Inquiry(req.body);
+    const customisation = new Customisation(req.body);
 
-    await inquiry.save();
+    await customisation.save();
 
     let emailSent = false;
 
@@ -169,42 +199,46 @@ app.post("/api/inquiries", async (req, res) => {
       await resend.emails.send({
         from: "Assume Exports <onboarding@resend.dev>",
         to: "ravindrapuri81@gmail.com",
-        subject: "New Inquiry Received | Assume Exports",
+        subject: "New Customisation Request | Assume Exports",
 
         html: `
           <div style="font-family:Arial;padding:20px;line-height:1.7">
-            <h2 style="color:#111">New Inquiry Received</h2>
+            <h2>New Customisation Request</h2>
 
-            <p><strong>Name:</strong> ${req.body.name || "N/A"}</p>
-            <p><strong>Phone:</strong> ${req.body.phone || "N/A"}</p>
+            <p><strong>Name:</strong> ${req.body.fullName || "N/A"}</p>
+            <p><strong>Country:</strong> ${req.body.country || "N/A"}</p>
             <p><strong>Email:</strong> ${req.body.email || "N/A"}</p>
-            <p><strong>Company:</strong> ${req.body.companyName || "N/A"}</p>
-            <p><strong>Product:</strong> ${req.body.productName || "N/A"}</p>
-            <p><strong>Quantity:</strong> ${req.body.quantity || "N/A"}</p>
+            <p><strong>Phone:</strong> ${req.body.phone || "N/A"}</p>
+            <p><strong>Business Type:</strong> ${req.body.businessType || "N/A"}</p>
 
-            <p><strong>Message:</strong></p>
+            <hr>
+
+            <p><strong>Dimensions:</strong> ${req.body.dimensions || "N/A"}</p>
+            <p><strong>Material:</strong> ${req.body.materialPreference || "N/A"}</p>
+            <p><strong>Estimated Quantity:</strong> ${req.body.estimatedQuantity || "N/A"}</p>
+
+            <p><strong>Specific Requirements:</strong></p>
             <div style="background:#f5f5f5;padding:15px;border-radius:8px">
-              ${req.body.message || "N/A"}
+              ${req.body.specificRequirements || "N/A"}
             </div>
           </div>
         `
       });
 
       emailSent = true;
-      console.log("Email sent successfully via Resend");
 
     } catch (mailError) {
-      console.log("Email Error:");
+      console.log("Customisation Email Error:");
       console.log(mailError.message);
     }
 
     res.json({
       success: true,
       message: emailSent
-        ? "Inquiry Saved & Email Sent"
-        : "Inquiry Saved, Email Failed",
+        ? "Customisation Saved & Email Sent"
+        : "Customisation Saved, Email Failed",
       emailSent,
-      data: inquiry
+      data: customisation
     });
 
   } catch (error) {
@@ -215,13 +249,12 @@ app.post("/api/inquiries", async (req, res) => {
   }
 });
 
-/* ================= GET INQUIRIES PUBLIC ================= */
+/* ================= GET CUSTOMISATION REQUESTS ================= */
 
-app.get("/api/inquiries", async (req, res) => {
+app.get("/api/customisation", async (req, res) => {
   try {
-    const inquiries = await Inquiry.find().sort({ createdAt: -1 });
-
-    res.json(inquiries);
+    const data = await Customisation.find().sort({ createdAt: -1 });
+    res.json(data);
 
   } catch (error) {
     res.status(500).json({
@@ -231,13 +264,13 @@ app.get("/api/inquiries", async (req, res) => {
   }
 });
 
-/* ================= UPDATE STATUS ================= */
+/* ================= UPDATE CUSTOMISATION STATUS ================= */
 
-app.put("/api/inquiries/:id/status", async (req, res) => {
+app.put("/api/customisation/:id/status", async (req, res) => {
   try {
     const { status } = req.body;
 
-    const inquiry = await Inquiry.findByIdAndUpdate(
+    const item = await Customisation.findByIdAndUpdate(
       req.params.id,
       { status },
       { new: true }
@@ -246,7 +279,7 @@ app.put("/api/inquiries/:id/status", async (req, res) => {
     res.json({
       success: true,
       message: "Status updated",
-      data: inquiry
+      data: item
     });
 
   } catch (error) {
@@ -257,15 +290,146 @@ app.put("/api/inquiries/:id/status", async (req, res) => {
   }
 });
 
-/* ================= DELETE INQUIRY ================= */
+/* ================= DELETE CUSTOMISATION ================= */
 
-app.delete("/api/inquiries/:id", async (req, res) => {
+app.delete("/api/customisation/:id", async (req, res) => {
   try {
-    await Inquiry.findByIdAndDelete(req.params.id);
+    await Customisation.findByIdAndDelete(req.params.id);
 
     res.json({
       success: true,
-      message: "Inquiry deleted"
+      message: "Customisation request deleted"
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/* ================= SAVE CATALOGUE REQUEST ================= */
+
+app.post("/api/catalogue", async (req, res) => {
+  try {
+    const catalogue = new Catalogue(req.body);
+
+    await catalogue.save();
+
+    let emailSent = false;
+
+    try {
+      await resend.emails.send({
+        from: "Assume Exports <onboarding@resend.dev>",
+        to: "ravindrapuri81@gmail.com",
+        subject: "New Catalogue Request | Assume Exports",
+
+        html: `
+          <div style="font-family:Arial;padding:20px;line-height:1.7">
+            <h2>New Catalogue Request</h2>
+
+            <p><strong>Name:</strong> ${req.body.fullName || "N/A"}</p>
+            <p><strong>Company:</strong> ${req.body.companyName || "N/A"}</p>
+            <p><strong>Country:</strong> ${req.body.country || "N/A"}</p>
+            <p><strong>Email:</strong> ${req.body.email || "N/A"}</p>
+            <p><strong>Phone:</strong> ${req.body.phone || "N/A"}</p>
+            <p><strong>Website:</strong> ${req.body.website || "N/A"}</p>
+
+            <hr>
+
+            <p><strong>Categories:</strong> ${Array.isArray(req.body.categories)
+            ? req.body.categories.join(", ")
+            : "N/A"
+          }</p>
+
+            <p><strong>Subcategories:</strong> ${Array.isArray(req.body.subcategories)
+            ? req.body.subcategories.join(", ")
+            : "N/A"
+          }</p>
+
+            <p><strong>Additional Notes:</strong></p>
+            <div style="background:#f5f5f5;padding:15px;border-radius:8px">
+              ${req.body.additionalNotes || "N/A"}
+            </div>
+          </div>
+        `
+      });
+
+      emailSent = true;
+
+    } catch (mailError) {
+      console.log("Catalogue Email Error:");
+      console.log(mailError.message);
+    }
+
+    res.json({
+      success: true,
+      message: emailSent
+        ? "Catalogue Saved & Email Sent"
+        : "Catalogue Saved, Email Failed",
+      emailSent,
+      data: catalogue
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/* ================= GET CATALOGUE REQUESTS ================= */
+
+app.get("/api/catalogue", async (req, res) => {
+  try {
+    const data = await Catalogue.find().sort({ createdAt: -1 });
+    res.json(data);
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/* ================= UPDATE CATALOGUE STATUS ================= */
+
+app.put("/api/catalogue/:id/status", async (req, res) => {
+  try {
+    const { status } = req.body;
+
+    const item = await Catalogue.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    );
+
+    res.json({
+      success: true,
+      message: "Status updated",
+      data: item
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/* ================= DELETE CATALOGUE REQUEST ================= */
+
+app.delete("/api/catalogue/:id", async (req, res) => {
+  try {
+    await Catalogue.findByIdAndDelete(req.params.id);
+
+    res.json({
+      success: true,
+      message: "Catalogue request deleted"
     });
 
   } catch (error) {
