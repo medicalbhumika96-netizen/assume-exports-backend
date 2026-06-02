@@ -6,6 +6,8 @@ const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const { Resend } = require("resend");
+const multer = require("multer");
+const { v2: cloudinary } = require("cloudinary");
 
 const app = express();
 
@@ -14,6 +16,7 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 5000;
 const resend = new Resend(process.env.RESEND_API_KEY);
+
 /* ================= CLOUDINARY ================= */
 
 cloudinary.config({
@@ -27,7 +30,10 @@ cloudinary.config({
 const storage = multer.memoryStorage();
 
 const upload = multer({
-  storage
+  storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024
+  }
 });
 
 /* ================= MONGODB ================= */
@@ -200,17 +206,66 @@ app.post("/api/admin/login", async (req, res) => {
   }
 });
 
-/* ================= SAVE CUSTOMISATION REQUEST ================= */
+/* ================= SAVE CUSTOMISATION REQUEST WITH FILES ================= */
 
-app.post("/api/customisation", async (req, res) => {
-  try {
-    const customisation = new Customisation(req.body);
-
-    await customisation.save();
-
-    let emailSent = false;
-
+app.post(
+  "/api/customisation",
+  upload.array("referenceFiles"),
+  async (req, res) => {
     try {
+      let uploadedFiles = [];
+
+      if (req.files && req.files.length > 0) {
+        for (const file of req.files) {
+          const base64File =
+            `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
+
+          const result = await cloudinary.uploader.upload(base64File, {
+            folder: "assume-exports-customisation",
+            resource_type: "auto"
+          });
+
+          uploadedFiles.push({
+            name: file.originalname,
+            url: result.secure_url,
+            type: file.mimetype,
+            size: file.size
+          });
+        }
+      }
+
+      const customisation = new Customisation({
+        fullName: req.body.fullName,
+        country: req.body.country,
+        email: req.body.email,
+        businessType: req.body.businessType,
+        phone: req.body.phone,
+
+        dimensions: req.body.dimensions,
+        materialPreference: req.body.materialPreference,
+        estimatedQuantity: req.body.estimatedQuantity,
+        specificRequirements: req.body.specificRequirements,
+
+        referenceFiles: uploadedFiles
+      });
+
+      await customisation.save();
+
+      let filesHtml = "No files uploaded";
+
+      if (uploadedFiles.length > 0) {
+        filesHtml = uploadedFiles
+          .map(
+            (file) =>
+              `<p>
+                <a href="${file.url}" target="_blank">
+                  View File - ${file.name}
+                </a>
+              </p>`
+          )
+          .join("");
+      }
+
       await resend.emails.send({
         from: "Assume Exports <onboarding@resend.dev>",
         to: "ravindrapuri81@gmail.com",
@@ -233,36 +288,32 @@ app.post("/api/customisation", async (req, res) => {
             <p><strong>Estimated Quantity:</strong> ${req.body.estimatedQuantity || "N/A"}</p>
 
             <p><strong>Specific Requirements:</strong></p>
-            <div style="background:#f5f5f5;padding:15px;border-radius:8px">
+            <div style="background:#f5f5f5;padding:15px;border-radius:8px;margin-bottom:20px">
               ${req.body.specificRequirements || "N/A"}
             </div>
+
+            <h3>Reference Files</h3>
+            ${filesHtml}
           </div>
         `
       });
 
-      emailSent = true;
+      res.json({
+        success: true,
+        message: "Customisation Saved Successfully",
+        data: customisation
+      });
 
-    } catch (mailError) {
-      console.log("Customisation Email Error:");
-      console.log(mailError.message);
+    } catch (error) {
+      console.log(error);
+
+      res.status(500).json({
+        success: false,
+        message: error.message
+      });
     }
-
-    res.json({
-      success: true,
-      message: emailSent
-        ? "Customisation Saved & Email Sent"
-        : "Customisation Saved, Email Failed",
-      emailSent,
-      data: customisation
-    });
-
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
   }
-});
+);
 
 /* ================= GET CUSTOMISATION REQUESTS ================= */
 
