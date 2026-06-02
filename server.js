@@ -57,6 +57,41 @@ function getPasswordVersion() {
     .digest("hex");
 }
 
+/* ================= PRODUCT SCHEMA ================= */
+
+const productSchema = new mongoose.Schema(
+  {
+    name: String,
+    slug: String,
+
+    category: String,
+    subcategory: String,
+
+    description: String,
+
+    material: String,
+    size: String,
+    moq: String,
+
+    image: String,
+
+    marketType: {
+      type: String,
+      enum: ["export", "india"],
+      default: "export"
+    },
+
+    status: {
+      type: String,
+      default: "Active"
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+
+const Product = mongoose.model("Product", productSchema);
 /* ================= JWT MIDDLEWARE ================= */
 
 const verifyToken = (req, res, next) => {
@@ -505,7 +540,172 @@ app.delete("/api/catalogue/:id", async (req, res) => {
     });
   }
 });
+/* ================= ADD PRODUCT ================= */
 
+app.post(
+  "/api/products",
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      let imageUrl = "";
+
+      if (req.file) {
+        const base64File =
+          `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+
+        const result = await cloudinary.uploader.upload(base64File, {
+          folder: "assume-products",
+          resource_type: "image"
+        });
+
+        imageUrl = result.secure_url;
+      }
+
+      const product = new Product({
+        name: req.body.name,
+        slug: req.body.slug,
+
+        category: req.body.category,
+        subcategory: req.body.subcategory,
+
+        description: req.body.description,
+
+        material: req.body.material,
+        size: req.body.size,
+        moq: req.body.moq,
+
+        marketType: req.body.marketType,
+
+        image: imageUrl
+      });
+
+      await product.save();
+
+      res.json({
+        success: true,
+        message: "Product added successfully",
+        data: product
+      });
+
+    } catch (error) {
+      console.log(error);
+
+      res.status(500).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+);
+
+/* ================= GET PRODUCTS ================= */
+
+app.get("/api/products", async (req, res) => {
+  try {
+    const products = await Product.find().sort({ createdAt: -1 });
+
+    res.json(products);
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/* ================= GET SINGLE PRODUCT ================= */
+
+app.get("/api/products/:id", async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+
+    res.json(product);
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/* ================= UPDATE PRODUCT ================= */
+
+app.put(
+  "/api/products/:id",
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      let updateData = {
+        name: req.body.name,
+        slug: req.body.slug,
+
+        category: req.body.category,
+        subcategory: req.body.subcategory,
+
+        description: req.body.description,
+
+        material: req.body.material,
+        size: req.body.size,
+        moq: req.body.moq,
+
+        marketType: req.body.marketType,
+
+        status: req.body.status
+      };
+
+      if (req.file) {
+        const base64File =
+          `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+
+        const result = await cloudinary.uploader.upload(base64File, {
+          folder: "assume-products",
+          resource_type: "image"
+        });
+
+        updateData.image = result.secure_url;
+      }
+
+      const product = await Product.findByIdAndUpdate(
+        req.params.id,
+        updateData,
+        { new: true }
+      );
+
+      res.json({
+        success: true,
+        message: "Product updated",
+        data: product
+      });
+
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+);
+
+/* ================= DELETE PRODUCT ================= */
+
+app.delete("/api/products/:id", async (req, res) => {
+  try {
+    await Product.findByIdAndDelete(req.params.id);
+
+    res.json({
+      success: true,
+      message: "Product deleted"
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
 /* ================= START SERVER ================= */
 
 app.listen(PORT, () => {
