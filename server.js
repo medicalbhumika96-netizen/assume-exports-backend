@@ -14,6 +14,21 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 5000;
 const resend = new Resend(process.env.RESEND_API_KEY);
+/* ================= CLOUDINARY ================= */
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+/* ================= MULTER ================= */
+
+const storage = multer.memoryStorage();
+
+const upload = multer({
+  storage
+});
 
 /* ================= MONGODB ================= */
 
