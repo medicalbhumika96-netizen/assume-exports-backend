@@ -544,21 +544,23 @@ app.delete("/api/catalogue/:id", async (req, res) => {
 
 app.post(
   "/api/products",
-  upload.single("image"),
+  upload.array("images"),
   async (req, res) => {
     try {
-      let imageUrl = "";
+      let uploadedImages = [];
 
-      if (req.file) {
-        const base64File =
-          `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+      if (req.files && req.files.length > 0) {
+        for (const file of req.files) {
+          const base64File =
+            `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
 
-        const result = await cloudinary.uploader.upload(base64File, {
-          folder: "assume-products",
-          resource_type: "image"
-        });
+          const result = await cloudinary.uploader.upload(base64File, {
+            folder: "assume-products",
+            resource_type: "image"
+          });
 
-        imageUrl = result.secure_url;
+          uploadedImages.push(result.secure_url);
+        }
       }
 
       const product = new Product({
@@ -575,8 +577,10 @@ app.post(
         moq: req.body.moq,
 
         marketType: req.body.marketType,
+        status: req.body.status || "Active",
 
-        image: imageUrl
+        image: uploadedImages[0] || "",
+        images: uploadedImages
       });
 
       await product.save();
@@ -603,7 +607,6 @@ app.post(
 app.get("/api/products", async (req, res) => {
   try {
     const products = await Product.find().sort({ createdAt: -1 });
-
     res.json(products);
 
   } catch (error) {
@@ -619,7 +622,6 @@ app.get("/api/products", async (req, res) => {
 app.get("/api/products/:id", async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
-
     res.json(product);
 
   } catch (error) {
@@ -634,10 +636,47 @@ app.get("/api/products/:id", async (req, res) => {
 
 app.put(
   "/api/products/:id",
-  upload.single("image"),
+  upload.array("images"),
   async (req, res) => {
     try {
-      let updateData = {
+      const oldProduct = await Product.findById(req.params.id);
+
+      if (!oldProduct) {
+        return res.status(404).json({
+          success: false,
+          message: "Product not found"
+        });
+      }
+
+      let newUploadedImages = [];
+
+      if (req.files && req.files.length > 0) {
+        for (const file of req.files) {
+          const base64File =
+            `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
+
+          const result = await cloudinary.uploader.upload(base64File, {
+            folder: "assume-products",
+            resource_type: "image"
+          });
+
+          newUploadedImages.push(result.secure_url);
+        }
+      }
+
+      const existingImages =
+        Array.isArray(oldProduct.images) && oldProduct.images.length
+          ? oldProduct.images
+          : oldProduct.image
+            ? [oldProduct.image]
+            : [];
+
+      const finalImages = [
+        ...existingImages,
+        ...newUploadedImages
+      ];
+
+      const updateData = {
         name: req.body.name,
         slug: req.body.slug,
 
@@ -651,21 +690,11 @@ app.put(
         moq: req.body.moq,
 
         marketType: req.body.marketType,
+        status: req.body.status || "Active",
 
-        status: req.body.status
+        image: finalImages[0] || "",
+        images: finalImages
       };
-
-      if (req.file) {
-        const base64File =
-          `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
-
-        const result = await cloudinary.uploader.upload(base64File, {
-          folder: "assume-products",
-          resource_type: "image"
-        });
-
-        updateData.image = result.secure_url;
-      }
 
       const product = await Product.findByIdAndUpdate(
         req.params.id,
@@ -680,6 +709,8 @@ app.put(
       });
 
     } catch (error) {
+      console.log(error);
+
       res.status(500).json({
         success: false,
         message: error.message
@@ -687,6 +718,51 @@ app.put(
     }
   }
 );
+
+/* ================= DELETE SINGLE PRODUCT IMAGE ================= */
+
+app.delete("/api/products/:id/image", async (req, res) => {
+  try {
+    const { imageUrl } = req.body;
+
+    const product = await Product.findById(req.params.id);
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found"
+      });
+    }
+
+    const currentImages =
+      Array.isArray(product.images) && product.images.length
+        ? product.images
+        : product.image
+          ? [product.image]
+          : [];
+
+    const updatedImages = currentImages.filter(img => img !== imageUrl);
+
+    product.images = updatedImages;
+    product.image = updatedImages[0] || "";
+
+    await product.save();
+
+    res.json({
+      success: true,
+      message: "Image deleted",
+      data: product
+    });
+
+  } catch (error) {
+    console.log(error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
 
 /* ================= DELETE PRODUCT ================= */
 
