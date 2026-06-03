@@ -74,6 +74,7 @@ const productSchema = new mongoose.Schema(
     moq: String,
 
     image: String,
+    images: Array,
 
     marketType: {
       type: String,
