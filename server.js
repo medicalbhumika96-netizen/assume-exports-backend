@@ -765,6 +765,96 @@ app.delete("/api/products/:id/image", async (req, res) => {
   }
 });
 
+
+/* ================= ANALYTICS ================= */
+
+app.get("/api/analytics", async (req, res) => {
+
+  try {
+
+    const totalProducts =
+      await Product.countDocuments();
+
+    const totalCustomisation =
+      await Customisation.countDocuments();
+
+    const totalCatalogue =
+      await Catalogue.countDocuments();
+
+    const totalRequests =
+      totalCustomisation + totalCatalogue;
+
+    const today = new Date();
+
+    today.setHours(0, 0, 0, 0);
+
+    const todayCustomisation =
+      await Customisation.countDocuments({
+        createdAt: { $gte: today }
+      });
+
+    const todayCatalogue =
+      await Catalogue.countDocuments({
+        createdAt: { $gte: today }
+      });
+
+    const todayRequests =
+      todayCustomisation + todayCatalogue;
+
+    const categoryData =
+      await Product.aggregate([
+        {
+          $group: {
+            _id: "$category",
+            count: { $sum: 1 }
+          }
+        }
+      ]);
+
+    const subcategoryData =
+      await Product.aggregate([
+        {
+          $group: {
+            _id: "$subcategory",
+            count: { $sum: 1 }
+          }
+        }
+      ]);
+
+    const latestProducts =
+      await Product.find()
+        .sort({ createdAt: -1 })
+        .limit(5);
+
+    res.json({
+
+      success: true,
+
+      analytics: {
+
+        totalProducts,
+        totalCustomisation,
+        totalCatalogue,
+        totalRequests,
+        todayRequests,
+
+        categoryData,
+        subcategoryData,
+
+        latestProducts
+      }
+    });
+
+  } catch (error) {
+
+    console.log(error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
 /* ================= DELETE PRODUCT ================= */
 
 app.delete("/api/products/:id", async (req, res) => {
