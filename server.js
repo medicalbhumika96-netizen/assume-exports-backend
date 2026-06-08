@@ -130,36 +130,36 @@ const verifyToken = (req, res, next) => {
 
 /* ================= CUSTOMISATION SCHEMA ================= */
 
-const customisationSchema = new mongoose.Schema(
-  {
-    fullName: String,
-    country: String,
-    email: String,
-    businessType: String,
-    phone: String,
+const customisationSchema = new mongoose.Schema({
+  fullName: String,
+  country: String,
+  email: String,
+  businessType: String,
+  phone: String,
 
-    dimensions: String,
-    materialPreference: String,
-    estimatedQuantity: String,
-    specificRequirements: String,
-
-    referenceFiles: Array,
-
-    status: {
-      type: String,
-      default: "New"
-    },
-
-    date: {
-      type: String,
-      default: () => new Date().toLocaleString()
+  products: [
+    {
+      productName: String,
+      dimensions: String,
+      materialPreference: String,
+      estimatedQuantity: String,
+      specificRequirements: String,
+      referenceFiles: Array
     }
-  },
-  {
-    timestamps: true
-  }
-);
+  ],
 
+  status: {
+    type: String,
+    default: "New"
+  },
+
+  date: {
+    type: String,
+    default: () => new Date().toLocaleString()
+  }
+}, {
+  timestamps: true
+});
 const Customisation = mongoose.model("Customisation", customisationSchema);
 
 /* ================= CATALOGUE SCHEMA ================= */
@@ -246,7 +246,7 @@ app.post("/api/admin/login", async (req, res) => {
 
 app.post(
   "/api/customisation",
-  upload.array("referenceFiles"),
+  upload.any(),
   async (req, res) => {
     try {
       let uploadedFiles = [];
@@ -270,21 +270,54 @@ app.post(
         }
       }
 
+      let products = [];
+
+      try {
+        products = JSON.parse(req.body.products || "[]");
+      } catch (err) {
+        products = [];
+      }
+
+      let productFileCounts = [];
+
+      try {
+        productFileCounts = JSON.parse(
+          req.body.productFileCounts || "[]"
+        );
+      } catch {
+        productFileCounts = [];
+      }
+
+      let fileIndex = 0;
+
+      products = products.map((product, index) => {
+
+        const count = productFileCounts[index] || 0;
+
+        const productFiles = uploadedFiles.slice(
+          fileIndex,
+          fileIndex + count
+        );
+
+        fileIndex += count;
+
+        return {
+          productName: product.productName || "",
+          dimensions: product.dimensions || "",
+          materialPreference: product.materialPreference || "",
+          estimatedQuantity: product.estimatedQuantity || "",
+          specificRequirements: product.specificRequirements || "",
+          referenceFiles: productFiles
+        };
+      });
       const customisation = new Customisation({
         fullName: req.body.fullName,
         country: req.body.country,
         email: req.body.email,
         businessType: req.body.businessType,
         phone: req.body.phone,
-
-        dimensions: req.body.dimensions,
-        materialPreference: req.body.materialPreference,
-        estimatedQuantity: req.body.estimatedQuantity,
-        specificRequirements: req.body.specificRequirements,
-
-        referenceFiles: uploadedFiles
+        products
       });
-
       await customisation.save();
 
       let filesHtml = "No files uploaded";
