@@ -304,7 +304,7 @@ app.post(
 
       await resend.emails.send({
         from: "Assume Exports <onboarding@resend.dev>",
-        to: "ravindrapuri81@gmail.com",
+        to: "assumeexports@gmail.com",
         subject: "New Customisation Request | Assume Exports",
 
         html: `
@@ -424,7 +424,7 @@ app.post("/api/catalogue", async (req, res) => {
     try {
       await resend.emails.send({
         from: "Assume Exports <onboarding@resend.dev>",
-        to: "ravindrapuri81@gmail.com",
+        to: "assumeexports@gmail.com",
         subject: "New Catalogue Request | Assume Exports",
 
         html: `
